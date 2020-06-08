@@ -6,6 +6,8 @@
 #include <stdbool.h>
 
 typedef struct {
+    /* kill processes until we reach the upper watermark */
+    double mem_high_percent;
     /* if the available memory AND swap goes below these percentages,
      * we start killing processes */
     double mem_term_percent;
@@ -19,10 +21,12 @@ typedef struct {
     /* prefer/avoid killing these processes. NULL = no-op. */
     regex_t* prefer_regex;
     regex_t* avoid_regex;
+    regex_t* avoid_users;
     /* memory report interval, in milliseconds */
     int report_interval_ms;
     /* Flag --dryrun was passed */
     bool dryrun;
+    bool nice;
 } poll_loop_args_t;
 
 void kill_largest_process(const poll_loop_args_t* args, int sig);

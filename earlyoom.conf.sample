@@ -1,0 +1,47 @@
+
+# Reporting interval (seconds)
+# Amount of time between outputting current memory usage info
+# 0: disable, > 0: enable at specified interval
+report_interval=300
+
+# Set niceness of earlyoom to -20 and oom_score_adj to -100
+# yes: enable, no: disable
+nice=no
+
+# Whether to ignore oom_score_adj when computing badness score
+# yes: ignore, no: take oom_score_adj into account
+ignore_oom_score_adj=no
+
+# D-Bus Notifications
+# yes: enable, no: disable
+notify_dbus=no
+
+# RAM High watermark (% of MemAvailable)
+# Stop killing processes once available memory rises above
+# this threshold to allow for hysteresis
+memory_high=15
+
+# RAM Low watermark (% of MemAvailable)
+# Start sending SIGTERM to processes once below this threshold
+memory_low=10
+
+# RAM Emergency threshold (% of MemAvailable)
+# Start sending SIGKILL to processes once below this threshold
+memory_kill=5
+
+# Swap Low watermark (% of Swap)
+# Start sending SIGTERM to processes once below this threshold
+swap_low=10
+
+# Swap Emergency threshold (% of Swap)
+# Start sending SIGKILL to processes once below this threshold
+swap_kill=5
+
+# Prefer process regex
+prefer_regex=^(php-cgi|php-fpm|doveadm|crond)$
+
+# Avoid process regex
+avoid_regex=^(mysqld|mysqld_safe|nginx|yum|puppet|upcp|cpsrvd)$
+
+# Avoid user regex
+avoid_users=^(root)$

@@ -17,6 +17,7 @@
 #include "kill.h"
 #include "meminfo.h"
 #include "msg.h"
+#include "config.h"
 
 /* Don't fail compilation if the user has an old glibc that
  * does not define MCL_ONFAULT. The kernel may still be recent
@@ -57,6 +58,7 @@ double min(double x, double y)
 int main(int argc, char* argv[])
 {
     poll_loop_args_t args = {
+        .mem_high_percent = 15,
         .mem_term_percent = 10,
         .swap_term_percent = 10,
         .mem_kill_percent = 5,
@@ -67,6 +69,7 @@ int main(int argc, char* argv[])
     int set_my_priority = 0;
     char* prefer_cmds = NULL;
     char* avoid_cmds = NULL;
+    char* config_path = NULL;
     regex_t _prefer_regex;
     regex_t _avoid_regex;
 
@@ -83,7 +86,7 @@ int main(int argc, char* argv[])
     meminfo_t m = parse_meminfo();
 
     int c;
-    const char* short_opt = "m:s:M:S:kinN:dvr:ph";
+    const char* short_opt = "c:m:s:M:S:kinN:dvr:ph";
     struct option long_opt[] = {
         { "prefer", required_argument, NULL, LONG_OPT_PREFER },
         { "avoid", required_argument, NULL, LONG_OPT_AVOID },
@@ -101,6 +104,9 @@ int main(int argc, char* argv[])
         switch (c) {
         case -1: /* no more arguments */
         case 0: /* long option toggles */
+            break;
+        case 'c':
+            config_path = optarg;
             break;
         case 'm':
             // Use 99 as upper limit. Passing "-m 100" makes no sense.
@@ -208,6 +214,8 @@ int main(int argc, char* argv[])
                 "                            to 0 to disable completely\n"
                 "  -p                        set niceness of earlyoom to -20 and oom_score_adj to\n"
                 "                            -100\n"
+                "  -c CONFIG_FILE            use configuration file located at CONFIG_PATH\n"
+                "                            Note: will override values specified via flags\n"
                 "  --prefer REGEX            prefer to kill processes matching REGEX\n"
                 "  --avoid REGEX             avoid killing processes matching REGEX\n"
                 "  --dryrun                  dry run (do not kill any processes)\n"
@@ -264,6 +272,10 @@ int main(int argc, char* argv[])
             fatal(6, "could not compile regexp '%s'\n", avoid_cmds);
         }
         fprintf(stderr, "Will avoid killing process names that match regex '%s'\n", avoid_cmds);
+    }
+    if (config_path) {
+        parse_config(config_path, &args);
+        set_my_priority = args.nice;
     }
     if (set_my_priority) {
         bool fail = 0;
