@@ -3,6 +3,7 @@
 #define MEMINFO_H
 
 #define PATH_LEN 256
+#define MAX_USERLEN 33
 
 #include <stdbool.h>
 
@@ -25,6 +26,7 @@ struct procinfo {
     int badness;
     long long VmRSSkiB;
     char name[PATH_LEN];
+    char username[MAX_USERLEN];
 };
 
 meminfo_t parse_meminfo();

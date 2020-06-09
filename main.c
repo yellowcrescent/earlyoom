@@ -384,6 +384,7 @@ static void poll_loop(const poll_loop_args_t* args)
     // Print a a memory report when this reaches zero. We start at zero so
     // we print the first report immediately.
     int report_countdown_ms = 0;
+    int hystis = 0;
 
     while (1) {
         int sig = 0;
@@ -398,8 +399,20 @@ static void poll_loop(const poll_loop_args_t* args)
             warn("low memory! at or below SIGTERM limits: mem " PRIPCT ", swap " PRIPCT "\n",
                 args->mem_term_percent, args->swap_term_percent);
             sig = SIGTERM;
+        } else if (hystis > 0) {
+            if (m.MemAvailablePercent <= args->mem_high_percent) {
+                warn("below high watermark (" PRIPCT "), continuing to kill processes\n",
+                    args->mem_high_percent);
+                sig = hystis;
+            } else {
+                hystis = 0;
+                print_mem_stats(warn, m);
+                warn("recovery complete (MemAvailable > mem_high_percent)\n");
+            }
         }
+
         if (sig) {
+            hystis = sig;
             kill_largest_process(args, sig);
         } else if (args->report_interval_ms && report_countdown_ms <= 0) {
             print_mem_stats(printf, m);

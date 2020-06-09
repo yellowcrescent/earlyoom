@@ -11,6 +11,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <pwd.h>
 #include <unistd.h>
 
 #include "globals.h"
@@ -20,6 +23,7 @@
 
 #define BADNESS_PREFER 300
 #define BADNESS_AVOID -300
+#define BADNESS_AVOID_USER -150
 
 static int isnumeric(char* str)
 {
@@ -118,6 +122,9 @@ void kill_largest_process(const poll_loop_args_t* args, int sig)
 {
     struct procinfo victim = { 0 };
     struct timespec t0 = { 0 }, t1 = { 0 };
+    char ppath[PATH_LEN] = { 0 };
+    struct stat pstat;
+    struct passwd* puser;
 
     if (enable_debug) {
         clock_gettime(CLOCK_MONOTONIC, &t0);
@@ -187,6 +194,24 @@ void kill_largest_process(const poll_loop_args_t* args, int sig)
             }
             if (args->avoid_regex && regexec(args->avoid_regex, cur.name, (size_t)0, NULL, 0) == 0) {
                 cur.badness += BADNESS_AVOID;
+            }
+        }
+
+        if (args->avoid_users) {
+            snprintf(ppath, sizeof(ppath), "/proc/%d", cur.pid);
+            if (stat(ppath, &pstat) == 0) {
+                if ((puser = getpwuid(pstat.st_uid)) != NULL) {
+                    strncpy(cur.username, puser->pw_name, MAX_USERLEN);
+                    if (regexec(args->avoid_users, cur.username, (size_t)0, NULL, 0) == 0) {
+                        cur.badness += BADNESS_AVOID_USER;
+                    }
+                } else {
+                    debug(" error looking up user with uid %d\n", pstat.st_uid);
+                    continue;
+                }
+            } else {
+                debug(" error stat'ing file: %s: %s\n", ppath, strerror(errno));
+                continue;
             }
         }
 
@@ -275,8 +300,8 @@ void kill_largest_process(const poll_loop_args_t* args, int sig)
     }
     // sig == 0 is used as a self-test during startup. Don't notifiy the user.
     if (sig != 0 || enable_debug) {
-        warn("sending %s to process %d uid %d \"%s\": badness %d, VmRSS %lld MiB\n",
-            sig_name, victim.pid, victim.uid, victim.name, victim.badness, victim.VmRSSkiB / 1024);
+        warn("sending %s to process %d uid %d/%s \"%s\": badness %d, VmRSS %lld MiB\n",
+            sig_name, victim.pid, victim.uid, victim.username, victim.name, victim.badness, victim.VmRSSkiB / 1024);
     }
 
     int res = kill_wait(args, victim.pid, sig);
