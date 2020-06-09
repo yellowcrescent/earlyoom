@@ -53,7 +53,7 @@ int parse_config(char* filename, poll_loop_args_t* confdata)
         cvalue[strlen(cvalue) - 1] = (char)'\0';
 
         if (!strcmp(ckey, "report_interval")) {
-            confdata->report_interval_ms = atoi(cvalue);
+            confdata->report_interval_ms = atoi(cvalue) * 1000;
         } else if (!strcmp(ckey, "nice")) {
             confdata->nice = (cvalue[0] == 'y' || cvalue[0] == '1') ? true : false;
         } else if (!strcmp(ckey, "ignore_oom_score_adj")) {
