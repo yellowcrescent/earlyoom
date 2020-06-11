@@ -17,6 +17,7 @@
 regex_t _c_prefer_regex;
 regex_t _c_avoid_regex;
 regex_t _c_user_regex;
+regex_t _c_old_regex;
 
 
 int parse_config(char* filename, poll_loop_args_t* confdata)
@@ -88,6 +89,12 @@ int parse_config(char* filename, poll_loop_args_t* confdata)
                 fatal(6, "could not compile regexp '%s'\n", cvalue);
             }
             fprintf(stderr, "Will avoid killing process owned by users that match regex '%s'\n", cvalue);
+        } else if (!strcmp(ckey, "prefer_old")) {
+            confdata->prefer_old = &_c_old_regex;
+            if ((regerr = regcomp(confdata->prefer_old, cvalue, REG_EXTENDED | REG_NOSUB)) != 0) {
+                fatal(6, "could not compile regexp '%s'\n", cvalue);
+            }
+            fprintf(stderr, "Preferring to kill old processes by age that match regex '%s'\n", cvalue);
         } else {
             warn("warning: unrecognized config parameter '%s'\n", ckey);
             continue;

@@ -45,3 +45,7 @@ avoid_regex=^(mysqld|mysqld_safe|nginx|yum|puppet|upcp|cpsrvd)$
 
 # Avoid user regex
 avoid_users=^(root)$
+
+# Prefer older processes that match this regex
+# badness += (process_rtime / 600)
+prefer_old=^(php-cgi)$

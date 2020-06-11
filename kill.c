@@ -24,6 +24,7 @@
 #define BADNESS_PREFER 300
 #define BADNESS_AVOID -300
 #define BADNESS_AVOID_USER -150
+#define BADNESS_AGE_DIV 600
 
 static int isnumeric(char* str)
 {
@@ -125,6 +126,7 @@ void kill_largest_process(const poll_loop_args_t* args, int sig)
     char ppath[PATH_LEN] = { 0 };
     struct stat pstat;
     struct passwd* puser;
+    proctime_t ptimes;
 
     if (enable_debug) {
         clock_gettime(CLOCK_MONOTONIC, &t0);
@@ -155,6 +157,9 @@ void kill_largest_process(const poll_loop_args_t* args, int sig)
             .uid = -1,
             .badness = -1,
             .VmRSSkiB = -1,
+            .utime = 0,
+            .stime = 0,
+            .rtime = 0
         };
 
         if (cur.pid <= 1)
@@ -183,7 +188,18 @@ void kill_largest_process(const poll_loop_args_t* args, int sig)
             }
         }
 
-        if ((args->prefer_regex || args->avoid_regex)) {
+        // get times for all processes if prefer_old is enabled
+        if (args->prefer_old) {
+            ptimes = get_process_times(cur.pid);
+            if (ptimes.valid) {
+                debug(" [process times: %lu user, %lu sys, %lu real] ", ptimes.c_utime, ptimes.c_stime, ptimes.c_runtime);
+                cur.utime = ptimes.c_utime;
+                cur.stime = ptimes.c_stime;
+                cur.rtime = ptimes.c_runtime;
+            }
+        }
+
+        if ((args->prefer_regex || args->avoid_regex || args->prefer_old)) {
             int res = get_comm(cur.pid, cur.name, sizeof(cur.name));
             if (res < 0) {
                 debug(" error reading process name: %s\n", strerror(-res));
@@ -194,6 +210,11 @@ void kill_largest_process(const poll_loop_args_t* args, int sig)
             }
             if (args->avoid_regex && regexec(args->avoid_regex, cur.name, (size_t)0, NULL, 0) == 0) {
                 cur.badness += BADNESS_AVOID;
+            }
+            if (args->prefer_old && regexec(args->prefer_old, cur.name, (size_t)0, NULL, 0) == 0) {
+                if (ptimes.valid) {
+                    cur.badness += (int)(ptimes.c_runtime / BADNESS_AGE_DIV);
+                }
             }
         }
 
@@ -300,8 +321,9 @@ void kill_largest_process(const poll_loop_args_t* args, int sig)
     }
     // sig == 0 is used as a self-test during startup. Don't notifiy the user.
     if (sig != 0 || enable_debug) {
-        warn("sending %s to process %d uid %d/%s \"%s\": badness %d, VmRSS %lld MiB\n",
-            sig_name, victim.pid, victim.uid, victim.username, victim.name, victim.badness, victim.VmRSSkiB / 1024);
+        warn("sending %s to process %d uid %d/%s \"%s\": badness %d, VmRSS %lld MiB, %lu re / %lu u / %lu s\n",
+            sig_name, victim.pid, victim.uid, victim.username, victim.name, victim.badness, victim.VmRSSkiB / 1024,
+            victim.rtime, victim.utime, victim.stime);
     }
 
     int res = kill_wait(args, victim.pid, sig);

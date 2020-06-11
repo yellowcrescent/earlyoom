@@ -25,11 +25,35 @@ struct procinfo {
     int uid;
     int badness;
     long long VmRSSkiB;
+    unsigned long utime;
+    unsigned long stime;
+    unsigned long rtime;
     char name[PATH_LEN];
     char username[MAX_USERLEN];
 };
 
+typedef struct {
+    // all times are in clock ticks
+    // divide by sysconf(_SC_CLK_TCK) to get seconds
+    unsigned long utime;
+    unsigned long stime;
+    unsigned long cutime;
+    unsigned long cstime;
+    // divide by sysconf(_SC_CLK_TCK) to get seconds
+    // then subtract from uptime to get absolute runtime duration
+    unsigned long long starttime;
+    // calculated times, rounded to nearest second
+    unsigned long c_utime;
+    unsigned long c_stime;
+    unsigned long c_cutime;
+    unsigned long c_cstime;
+    unsigned long c_runtime;
+    bool valid;
+} proctime_t;
+
 meminfo_t parse_meminfo();
+proctime_t get_process_times(int pid);
+float get_uptime();
 bool is_alive(int pid);
 void print_mem_stats(int (*out_func)(const char* fmt, ...), const meminfo_t m);
 int get_oom_score(int pid);

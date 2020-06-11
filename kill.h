@@ -22,6 +22,7 @@ typedef struct {
     regex_t* prefer_regex;
     regex_t* avoid_regex;
     regex_t* avoid_users;
+    regex_t* prefer_old;
     /* memory report interval, in milliseconds */
     int report_interval_ms;
     /* Flag --dryrun was passed */

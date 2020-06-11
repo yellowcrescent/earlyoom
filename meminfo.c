@@ -9,7 +9,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
+
 
 #include "globals.h"
 #include "meminfo.h"
@@ -116,6 +118,57 @@ meminfo_t parse_meminfo()
     m.SwapFreeMiB = SwapFree / 1024;
 
     return m;
+}
+
+proctime_t get_process_times(int pid)
+{
+    FILE* f;
+    char ppath[PATH_LEN];
+    proctime_t tt = { 0 };
+    unsigned long clk_ticks;
+    tt.valid = false;
+
+    clk_ticks = (unsigned long)sysconf(_SC_CLK_TCK);
+
+    snprintf(ppath, sizeof(ppath), "/proc/%d/stat", pid);
+    if ((f = fopen(ppath, "r")) == NULL) {
+        warn("get_process_times: failed to read stat for pid %d\n", pid);
+        return tt;
+    }
+
+    // pid(%d), comm(%s), state(%c), ppid(%d), pgrp(%d), session(%d), tty_nr(%d), tpgid(%d),
+    // flags(%u), minflt(%lu), cminflt(%lu), majflt(%lu), cmajflt(%lu), utime(%lu), stime(%lu),
+    // cutime(%ld), cstime(%ld), priority(%ld), nice(%ld), num_threads(%ld),
+    // itrealvalue(%ld), starttime(%llu), ...
+    #pragma GCC diagnostic ignored "-Wformat"
+    fscanf(f, "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*lu %*lu %*lu %*lu %lu %lu %ld %ld %*ld %*ld %*ld %*ld %llu ",
+              &tt.utime, &tt.stime, &tt.cutime, &tt.cstime, &tt.starttime);
+    #pragma GCC diagnostic warning "-Wformat"
+    fclose(f);
+
+    tt.c_utime = tt.utime / clk_ticks;
+    tt.c_stime = tt.stime / clk_ticks;
+    tt.c_cutime = tt.cutime / clk_ticks;
+    tt.c_cstime = tt.cstime / clk_ticks;
+    tt.c_runtime = (unsigned long)get_uptime() - (tt.starttime / clk_ticks);
+    tt.valid = true;
+
+    return tt;
+}
+
+float get_uptime()
+{
+    FILE* f;
+    float uptime;
+
+    if ((f = fopen("/proc/uptime", "r")) == NULL) {
+        return -1.0f;
+    }
+
+    fscanf(f, "%f ", &uptime);
+    fclose(f);
+
+    return uptime;
 }
 
 bool is_alive(int pid)
