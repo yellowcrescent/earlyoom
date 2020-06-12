@@ -26,6 +26,8 @@
 #define BADNESS_AVOID_USER -150
 #define BADNESS_AGE_DIV 600
 
+#define SIGTERM_WAIT 6.0
+
 static int isnumeric(char* str)
 {
     int i = 0;
@@ -93,7 +95,7 @@ int kill_wait(const poll_loop_args_t* args, pid_t pid, int sig)
         if (sig != SIGKILL) {
             m = parse_meminfo();
             print_mem_stats(debug, m);
-            if (m.MemAvailablePercent <= args->mem_kill_percent && m.SwapFreePercent <= args->swap_kill_percent) {
+            if (secs >= SIGTERM_WAIT || (m.MemAvailablePercent <= args->mem_kill_percent && m.SwapFreePercent <= args->swap_kill_percent)) {
                 sig = SIGKILL;
                 res = kill(pid, sig);
                 // kill first, print after
