@@ -32,6 +32,9 @@
 #define VERSION "*** unknown version ***"
 #endif
 
+// Minimum time between invoking kill_emergency(), in milliseconds
+#define EMERGENCY_TIMEOUT 30000
+
 /* Arbitrary identifiers for long options that do not have a short
  * version */
 enum {
@@ -401,11 +404,18 @@ static void poll_loop(const poll_loop_args_t* args)
     int report_countdown_ms = 0;
     int hystis = 0;
     bool emergency_invoked = false;
+    int emergency_timeout_ms = 0;
 
     while (1) {
         int sig = 0;
         meminfo_t m = parse_meminfo();
-        if (!hystis && m.MemAvailablePercent <= args->mem_kill_percent && m.SwapFreePercent <= args->swap_kill_percent) {
+        if (args->emerg_kill && emergency_timeout_ms <= 0 &&
+            m.MemAvailablePercent <= args->mem_emerg_percent && m.SwapFreePercent <= args->swap_kill_percent) {
+            sig = SIGKILL;
+            emergency_invoked = true;
+            warn("EMERGENCY! at or below emergency limit: mem " PRIPCT ", swap " PRIPCT "\n",
+                args->mem_emerg_percent, args->swap_kill_percent);
+        } else if (m.MemAvailablePercent <= args->mem_kill_percent && m.SwapFreePercent <= args->swap_kill_percent) {
             print_mem_stats(warn, m);
             warn("low memory! at or below SIGKILL limits: mem " PRIPCT ", swap " PRIPCT "\n",
                 args->mem_kill_percent, args->swap_kill_percent);
@@ -415,11 +425,6 @@ static void poll_loop(const poll_loop_args_t* args)
             warn("low memory! at or below SIGTERM limits: mem " PRIPCT ", swap " PRIPCT "\n",
                 args->mem_term_percent, args->swap_term_percent);
             sig = SIGTERM;
-        } else if (args->emerg_kill && m.MemAvailablePercent <= args->mem_emerg_percent && m.SwapFreePercent <= args->swap_kill_percent) {
-            sig = SIGKILL;
-            emergency_invoked = true;
-            warn("EMERGENCY! at or below emergency limit: mem " PRIPCT ", swap " PRIPCT "\n",
-                args->mem_emerg_percent, args->swap_kill_percent);
         } else if (hystis > 0) {
             if (m.MemAvailablePercent <= args->mem_high_percent) {
                 warn("below high watermark (" PRIPCT "), continuing to kill processes\n",
@@ -435,11 +440,14 @@ static void poll_loop(const poll_loop_args_t* args)
         if (sig) {
             if (emergency_invoked) {
                 kill_emergency(args);
+                sleep_ms = 2000;
+                emergency_timeout_ms = EMERGENCY_TIMEOUT;
+                emergency_invoked = false;
             } else {
                 kill_largest_process(args, sig);
+                sleep_ms = (hystis == SIGKILL) ? 50 : 500;
             }
             hystis = sig;
-            sleep_ms = (hystis == SIGKILL) ? 50 : 500;
         } else if (args->report_interval_ms && report_countdown_ms <= 0) {
             print_mem_stats(printf, m);
             report_countdown_ms = args->report_interval_ms;
@@ -448,5 +456,8 @@ static void poll_loop(const poll_loop_args_t* args)
         debug("adaptive sleep time: %d ms\n", sleep_ms);
         usleep(sleep_ms * 1000);
         report_countdown_ms -= (int)sleep_ms;
+        if (emergency_timeout_ms > 0) {
+            emergency_timeout_ms -= (int)sleep_ms;
+        }
     }
 }

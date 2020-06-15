@@ -365,15 +365,32 @@ void kill_largest_process(const poll_loop_args_t* args, int sig)
 
 int kill_emergency(const poll_loop_args_t* args)
 {
+    char victim_list[EMERG_LIST_MAX][PROC_LEN_MAX] = { 0 };
     meminfo_t m = { 0 };
     int kills = 0;
-    char* victim_name;
-    while ((victim_name = strtok(args->emerg_kill, ",")) != NULL) {
+    const char vtok[2] = ",";
+    char emerg_kill_str[EMERG_KILL_MAXLEN];
+
+    // create a copy of args->emerg_kill, since strtok
+    // will screw up our data by injecting NULLs into it
+    strncpy(emerg_kill_str, args->emerg_kill, EMERG_KILL_MAXLEN);
+
+    int num_victim = 0;
+    char* ttok = strtok(emerg_kill_str, vtok);
+
+    while (ttok != NULL) {
+        strncpy(victim_list[num_victim], ttok, PROC_LEN_MAX);
+        ttok = strtok(NULL, vtok);
+        num_victim++;
+    }
+
+    for (int i = 0; i < num_victim; i++) {
         m = parse_meminfo();
         if (m.MemAvailablePercent > args->mem_high_percent) {
             break;
         }
 
+        char* victim_name = victim_list[i];
         warn("kill_emergency: killing all processes with name '%s'\n", victim_name);
 
         DIR* procdir = opendir("/proc");
@@ -419,10 +436,9 @@ int kill_emergency(const poll_loop_args_t* args)
                 warn("kill_emergency: sending SIGKILL to process %d (%s)\n", cur.pid, cur.name);
                 kill(cur.pid, SIGKILL);
                 kills++;
-            } else {
-                break;
             }
         }
+        closedir(procdir);
     }
 
     warn("kill_emergency: finished after killing %d victims\n", kills);
