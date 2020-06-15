@@ -411,7 +411,7 @@ static void poll_loop(const poll_loop_args_t* args)
             warn("low memory! at or below SIGTERM limits: mem " PRIPCT ", swap " PRIPCT "\n",
                 args->mem_term_percent, args->swap_term_percent);
             sig = SIGTERM;
-        } else if (m.MemAvailablePercent <= args->mem_emerg_percent && m.SwapFreePercent <= args->swap_kill_percent) {
+        } else if (args->emerg_kill && m.MemAvailablePercent <= args->mem_emerg_percent && m.SwapFreePercent <= args->swap_kill_percent) {
             sig = SIGKILL;
             emergency_invoked = true;
             warn("EMERGENCY! at or below emergency limit: mem " PRIPCT ", swap " PRIPCT "\n",

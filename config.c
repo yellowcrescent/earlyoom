@@ -101,7 +101,7 @@ int parse_config(char* filename, poll_loop_args_t* confdata)
         } else if (!strcmp(ckey, "emerg_kill")) {
             confdata->emerg_kill = _c_emerg_kill;
             strncpy(confdata->emerg_kill, cvalue, EMERG_KILL_MAXLEN);
-            fprintf(stderr, "In case of emergency, will kill the following processes: %s", confdata->emerg_kill);
+            fprintf(stderr, "In case of emergency, will kill the following processes: %s\n", confdata->emerg_kill);
         } else {
             warn("warning: unrecognized config parameter '%s'\n", ckey);
             continue;
