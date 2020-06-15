@@ -21,19 +21,23 @@ notify_dbus=no
 # this threshold to allow for hysteresis
 memory_high=15
 
-# RAM Low watermark (% of MemAvailable)
+# RAM Low/Term watermark (% of MemAvailable)
 # Start sending SIGTERM to processes once below this threshold
 memory_low=10
 
-# RAM Emergency threshold (% of MemAvailable)
+# RAM Kill threshold (% of MemAvailable)
 # Start sending SIGKILL to processes once below this threshold
 memory_kill=5
+
+# RAM Emergency threshold (% of MemAvailable)
+# Kills all processes listed under emerg_kill once below this threshold
+memory_emerg=2
 
 # Swap Low watermark (% of Swap)
 # Start sending SIGTERM to processes once below this threshold
 swap_low=10
 
-# Swap Emergency threshold (% of Swap)
+# Swap Kill threshold (% of Swap)
 # Start sending SIGKILL to processes once below this threshold
 swap_kill=5
 
@@ -49,3 +53,9 @@ avoid_users=^(root)$
 # Prefer older processes that match this regex
 # badness += (process_rtime / 600)
 prefer_old=^(php-cgi)$
+
+# Processes to kill en-masse in case of emergency
+# List of process names, comma-separated
+# Executed left-to-right, and MemAvailable is checked
+# after killing processes with those names
+emerg_kill=doveadm,php-cgi,zip,dovecot,httpd,php-fpm,restic,nginx

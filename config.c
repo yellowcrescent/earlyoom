@@ -18,6 +18,7 @@ regex_t _c_prefer_regex;
 regex_t _c_avoid_regex;
 regex_t _c_user_regex;
 regex_t _c_old_regex;
+char _c_emerg_kill[EMERG_KILL_MAXLEN];
 
 
 int parse_config(char* filename, poll_loop_args_t* confdata)
@@ -67,6 +68,8 @@ int parse_config(char* filename, poll_loop_args_t* confdata)
             confdata->mem_term_percent = atof(cvalue);
         } else if (!strcmp(ckey, "memory_kill")) {
             confdata->mem_kill_percent = atof(cvalue);
+        } else if (!strcmp(ckey, "memory_emerg")) {
+            confdata->mem_emerg_percent = atof(cvalue);
         } else if (!strcmp(ckey, "swap_low")) {
             confdata->swap_term_percent = atof(cvalue);
         } else if (!strcmp(ckey, "swap_kill")) {
@@ -95,6 +98,10 @@ int parse_config(char* filename, poll_loop_args_t* confdata)
                 fatal(6, "could not compile regexp '%s'\n", cvalue);
             }
             fprintf(stderr, "Preferring to kill old processes by age that match regex '%s'\n", cvalue);
+        } else if (!strcmp(ckey, "emerg_kill")) {
+            confdata->emerg_kill = _c_emerg_kill;
+            strncpy(confdata->emerg_kill, cvalue, EMERG_KILL_MAXLEN);
+            fprintf(stderr, "In case of emergency, will kill the following processes: %s", confdata->emerg_kill);
         } else {
             warn("warning: unrecognized config parameter '%s'\n", ckey);
             continue;

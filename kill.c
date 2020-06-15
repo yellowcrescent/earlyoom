@@ -27,6 +27,8 @@
 #define BADNESS_AGE_DIV 600
 
 #define SIGTERM_WAIT 6.0
+#define EMERG_LIST_MAX 64
+#define PROC_LEN_MAX 32
 
 static int isnumeric(char* str)
 {
@@ -359,4 +361,70 @@ void kill_largest_process(const poll_loop_args_t* args, int sig)
             sleep(1);
         }
     }
+}
+
+int kill_emergency(const poll_loop_args_t* args)
+{
+    meminfo_t m = { 0 };
+    int kills = 0;
+    char* victim_name;
+    while ((victim_name = strtok(args->emerg_kill, ",")) != NULL) {
+        m = parse_meminfo();
+        if (m.MemAvailablePercent > args->mem_high_percent) {
+            break;
+        }
+
+        warn("kill_emergency: killing all processes with name '%s'\n", victim_name);
+
+        DIR* procdir = opendir("/proc");
+        if (procdir == NULL) {
+            fatal(5, "Could not open /proc: %s", strerror(errno));
+        }
+
+        while (1) {
+            errno = 0;
+            struct dirent* d = readdir(procdir);
+            if (d == NULL) {
+                if (errno != 0) warn("kill_emergency: readdir error: %s", strerror(errno));
+                break;
+            }
+
+            // proc contains lots of directories not related to processes,
+            // skip them
+            if (!isnumeric(d->d_name)) continue;
+
+            struct procinfo cur = {
+                .pid = (int)strtol(d->d_name, NULL, 10),
+                .uid = -1,
+                .badness = -1,
+                .VmRSSkiB = -1,
+                .utime = 0,
+                .stime = 0,
+                .rtime = 0
+            };
+
+            if (cur.pid <= 1)
+                // Let's not kill init.
+                continue;
+
+            if (strlen(cur.name) == 0) {
+                int res = get_comm(cur.pid, cur.name, sizeof(cur.name));
+                if (res < 0) {
+                    debug(" error reading process name: %s\n", strerror(-res));
+                    continue;
+                }
+            }
+
+            if (!strcmp(cur.name, victim_name)) {
+                warn("kill_emergency: sending SIGKILL to process %d (%s)\n", cur.pid, cur.name);
+                kill(cur.pid, SIGKILL);
+                kills++;
+            } else {
+                break;
+            }
+        }
+    }
+
+    warn("kill_emergency: finished after killing %d victims\n", kills);
+    return kills;
 }
