@@ -310,6 +310,10 @@ int main(int argc, char* argv[])
         args.mem_term_percent, args.swap_term_percent);
     fprintf(stderr, "        SIGKILL when mem <= " PRIPCT " and swap <= " PRIPCT "\n",
         args.mem_kill_percent, args.swap_kill_percent);
+    if (args.mem_emerg_percent && args.emerg_kill) {
+        fprintf(stderr, "        EMERGENCY when mem <= " PRIPCT " and swap <= " PRIPCT "\n",
+            args.mem_emerg_percent, args.swap_kill_percent);
+    }
 
     /* Dry-run oom kill to make sure stack grows to maximum size before
      * calling mlockall()
