@@ -13,6 +13,7 @@
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "globals.h"
 #include "kill.h"
@@ -34,6 +35,7 @@
 
 // Minimum time between invoking kill_emergency(), in milliseconds
 #define EMERGENCY_TIMEOUT 30000
+#define STATUS_FILENAME "/var/run/earlyoom/status"
 
 /* Arbitrary identifiers for long options that do not have a short
  * version */
@@ -45,6 +47,7 @@ enum {
 
 static int set_oom_score_adj(int);
 static void poll_loop(const poll_loop_args_t* args);
+static void update_status(int sig, bool emergency, bool high, double memavail, double setpoint);
 
 // Prevent Golang / Cgo name collision when the test suite runs -
 // Cgo generates it's own main function.
@@ -317,6 +320,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "        EMERGENCY when mem <= " PRIPCT " and swap <= " PRIPCT "\n",
             args.mem_emerg_percent, args.swap_kill_percent);
     }
+    fprintf(stderr, "writing status to file: %s\n", STATUS_FILENAME);
 
     /* Dry-run oom kill to make sure stack grows to maximum size before
      * calling mlockall()
@@ -396,6 +400,40 @@ static unsigned sleep_time_ms(const poll_loop_args_t* args, const meminfo_t* m)
     return (unsigned)ms;
 }
 
+static void update_status(int sig, bool emergency, bool high, double memavail, double setpoint)
+{
+    FILE* sfile;
+
+    if ((sfile = fopen(STATUS_FILENAME, "w"))) {
+        // Write status file, one value per line:
+        // StatusCode
+        if (high) {
+            fprintf(sfile, "high\n");
+        } else if (emergency) {
+            fprintf(sfile, "emergency\n");
+        } else if (sig == SIGTERM) {
+            fprintf(sfile, "term\n");
+        } else if (sig == SIGKILL) {
+            fprintf(sfile, "kill\n");
+        } else {
+            fprintf(sfile, "ok\n");
+        }
+
+        // MemAvailable
+        fprintf(sfile, "%0.02f\n", memavail);
+
+        // TriggeredSetpoint
+        fprintf(sfile, "%0.02f\n", setpoint);
+
+        // LastUpdate
+        fprintf(sfile, "%ld\n", time(NULL));
+
+        fclose(sfile);
+    } else {
+        warn("failed to write to status file (%s)\n", STATUS_FILENAME);
+    }
+}
+
 static void poll_loop(const poll_loop_args_t* args)
 {
     // Print a a memory report when this reaches zero. We start at zero so
@@ -405,14 +443,17 @@ static void poll_loop(const poll_loop_args_t* args)
     int hystis = 0;
     bool emergency_invoked = false;
     int emergency_timeout_ms = 0;
+    double current_setpoint = 0;
 
     while (1) {
         int sig = 0;
+        bool high = false;
         meminfo_t m = parse_meminfo();
         if (args->emerg_kill && emergency_timeout_ms <= 0 &&
             m.MemAvailablePercent <= args->mem_emerg_percent && m.SwapFreePercent <= args->swap_kill_percent) {
             sig = SIGKILL;
             emergency_invoked = true;
+            current_setpoint = args->mem_emerg_percent;
             warn("EMERGENCY! at or below emergency limit: mem " PRIPCT ", swap " PRIPCT "\n",
                 args->mem_emerg_percent, args->swap_kill_percent);
         } else if (m.MemAvailablePercent <= args->mem_kill_percent && m.SwapFreePercent <= args->swap_kill_percent) {
@@ -420,22 +461,30 @@ static void poll_loop(const poll_loop_args_t* args)
             warn("low memory! at or below SIGKILL limits: mem " PRIPCT ", swap " PRIPCT "\n",
                 args->mem_kill_percent, args->swap_kill_percent);
             sig = SIGKILL;
+            current_setpoint = args->mem_kill_percent;
         } else if (m.MemAvailablePercent <= args->mem_term_percent && m.SwapFreePercent <= args->swap_term_percent) {
             print_mem_stats(warn, m);
             warn("low memory! at or below SIGTERM limits: mem " PRIPCT ", swap " PRIPCT "\n",
                 args->mem_term_percent, args->swap_term_percent);
             sig = SIGTERM;
+            current_setpoint = args->mem_term_percent;
         } else if (hystis > 0) {
             if (m.MemAvailablePercent <= args->mem_high_percent) {
                 warn("below high watermark (" PRIPCT "), continuing to kill processes\n",
                     args->mem_high_percent);
                 sig = hystis;
+                high = true;
+                current_setpoint = args->mem_high_percent;
             } else {
                 hystis = 0;
+                current_setpoint = 0;
                 print_mem_stats(warn, m);
                 warn("recovery complete (MemAvailable > mem_high_percent)\n");
             }
         }
+
+        // write updated status file
+        update_status(sig, emergency_invoked, high, m.MemAvailablePercent, current_setpoint);
 
         if (sig) {
             if (emergency_invoked) {
