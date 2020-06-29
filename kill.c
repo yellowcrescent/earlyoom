@@ -433,7 +433,7 @@ int kill_emergency(const poll_loop_args_t* args)
             }
 
             if (!strcmp(cur.name, victim_name)) {
-                warn("kill_emergency: sending SIGKILL to process %d (%s)\n", cur.pid, cur.name);
+                debug("kill_emergency: sending SIGKILL to process %d (%s)\n", cur.pid, cur.name);
                 kill(cur.pid, SIGKILL);
                 kills++;
             }
