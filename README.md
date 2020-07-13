@@ -110,8 +110,6 @@ _Note that for systems with SELinux disabled (Ubuntu 19.04, Debian 9 ...) chcon 
 For Debian 10+ and Ubuntu 18.04+, there's a [Debian package](https://packages.debian.org/search?keywords=earlyoom):
 ```bash
 sudo apt install earlyoom
-sudo systemctl enable earlyoom
-sudo systemctl start earlyoom
 ```
 
 For Fedora and RHEL 8 with EPEL, there's a [Fedora package](https://apps.fedoraproject.org/packages/earlyoom):
@@ -125,6 +123,8 @@ For Arch Linux, there's an [Arch Linux package](https://www.archlinux.org/packag
 sudo pacman -S earlyoom
 sudo systemctl enable --now earlyoom
 ```
+
+Availability in other distributions: see [repology page](https://repology.org/project/earlyoom/versions).
 
 Use
 ---
@@ -243,6 +243,10 @@ accept
 
 Changelog
 ---------
+* 1.6.1, 2020-07-07
+  * Clean up dbus-send zombie processes ([#200](https://github.com/rfjakob/earlyoom/issues/200))
+  * Skip processes with oom_score_adj=-1000 ([210](https://github.com/rfjakob/earlyoom/issues/210))
+
 * 1.6, 2020-04-11
   * Replace old `notify-send` GUI notification logic with
     `dbus-send` / [systembus-notify](https://github.com/rfjakob/systembus-notify)
