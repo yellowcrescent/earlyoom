@@ -68,6 +68,15 @@ void handle_sigchld(int sig)
     waitpid(-1, NULL, WNOHANG);
 }
 
+void handle_sigpipe(int sig)
+{
+    (void)sig; // unused
+
+    // we're gonna log here, just in case this is triggered erroneously.
+    // this function will not return
+    fatal(99, "SIGPIPE caught! aborting");
+}
+
 int main(int argc, char* argv[])
 {
     poll_loop_args_t args = {
@@ -92,6 +101,7 @@ int main(int argc, char* argv[])
 
     /* clean up dbus-send zombies */
     signal(SIGCHLD, handle_sigchld);
+    signal(SIGPIPE, handle_sigpipe);
 
     fprintf(stderr, "earlyoom " VERSION "\n");
 
